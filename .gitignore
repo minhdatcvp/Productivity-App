@@ -1,0 +1,48 @@
+# ---- Python (api/) ----
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / Next.js (web/) ----
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# ---- Logs / runtime artifacts ----
+*.log
+*.err
+dump.rdb
+celerybeat-schedule
+celerybeat.pid
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---- Local Claude state (keep docs/plans, drop runtime) ----
+.claude/settings.local.json
