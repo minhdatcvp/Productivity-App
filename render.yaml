@@ -16,4 +16,4 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: https://web-chi-sooty-75.vercel.app
