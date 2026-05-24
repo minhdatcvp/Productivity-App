@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     groq_api_key: str = ""
     cors_origins: str = "http://localhost:3000"
+    database_ssl: bool = False
 
     # JWT
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
