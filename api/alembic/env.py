@@ -25,7 +25,7 @@ target_metadata = Base.metadata
 _raw_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url") or "")
 # asyncpg doesn't accept sslmode param — strip it; SSL is set via connect_args
 import re as _re
-db_url = _re.sub(r"[?&]sslmode=[^&]*", "", _raw_url).rstrip("?&")
+db_url = _re.sub(r"[?&](sslmode|channel_binding)=[^&]*", "", _raw_url).rstrip("?&")
 db_ssl = "sslmode=require" in _raw_url
 config.set_main_option("sqlalchemy.url", db_url)
 

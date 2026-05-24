@@ -21,8 +21,9 @@ class Settings(BaseSettings):
 
     @property
     def db_url_clean(self) -> str:
-        """asyncpg doesn't accept sslmode param; strip it from the URL."""
-        return re.sub(r"[?&]sslmode=[^&]*", "", self.database_url).rstrip("?&")
+        """asyncpg doesn't accept sslmode/channel_binding params; strip them."""
+        url = re.sub(r"[?&](sslmode|channel_binding)=[^&]*", "", self.database_url)
+        return url.rstrip("?&")
 
     @property
     def db_ssl(self) -> bool:
