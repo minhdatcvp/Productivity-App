@@ -7,7 +7,8 @@ Web app cá nhân gồm 2 module:
 2. **Học tập** — Tạo nhiều chủ đề học tập (tiếng Anh, tiếng Hàn, Python, v.v.), SRS flashcard, AI test generation & feedback
 
 **Plan tổng**: `.claude/plans/main-plan.md`  
-**Plan Phase 4 — Học tập**: `.claude/plans/phase4-hoc-tap.md`
+**Plan Phase 4 — Học tập**: `.claude/plans/phase4-hoc-tap.md`  
+**Deployment guide**: `.claude/docs/deployment.md`
 
 ---
 
