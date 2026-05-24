@@ -39,13 +39,14 @@
 2. Render auto-detects `render.yaml` at repo root → service name `productivity-api`
 3. Fill in the 5 env vars (see below)
 4. Wait for build (~3–5 min first time, Docker build)
-5. Note the assigned URL: `https://productivity-api.onrender.com`
+5. **Live URL: `https://productivity-api-83jt.onrender.com`**
 
 ### 5. Vercel (Next.js frontend)
 1. Import repo at vercel.com → set **Root Directory** to `web`
-2. Add env var: `NEXT_PUBLIC_API_URL=https://productivity-api.onrender.com`
+2. Add env var: `NEXT_PUBLIC_API_URL=https://productivity-api-83jt.onrender.com`
 3. After deploy, note the Vercel URL
 4. Go back to Render → update `CORS_ORIGINS` to the Vercel URL
+5. **Live URL: `https://web-chi-sooty-75.vercel.app`**
 
 ---
 
