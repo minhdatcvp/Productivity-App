@@ -22,10 +22,12 @@ import app.models.learn
 target_metadata = Base.metadata
 
 # Override sqlalchemy.url from environment variable if set
-db_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
-# Alembic needs psycopg2-style URL for sync connections; swap asyncpg driver
-sync_url = db_url.replace("+asyncpg", "+psycopg2") if db_url else db_url
-config.set_main_option("sqlalchemy.url", db_url or "")
+_raw_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url") or "")
+# asyncpg doesn't accept sslmode param — strip it; SSL is set via connect_args
+import re as _re
+db_url = _re.sub(r"[?&]sslmode=[^&]*", "", _raw_url).rstrip("?&")
+db_ssl = "sslmode=require" in _raw_url
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline() -> None:
@@ -53,6 +55,7 @@ async def run_async_migrations() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"ssl": db_ssl},
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

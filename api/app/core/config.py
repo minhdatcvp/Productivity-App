@@ -1,3 +1,5 @@
+import re
+
 from pydantic_settings import BaseSettings
 
 
@@ -16,6 +18,15 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",")]
+
+    @property
+    def db_url_clean(self) -> str:
+        """asyncpg doesn't accept sslmode param; strip it from the URL."""
+        return re.sub(r"[?&]sslmode=[^&]*", "", self.database_url).rstrip("?&")
+
+    @property
+    def db_ssl(self) -> bool:
+        return self.database_ssl or "sslmode=require" in self.database_url
 
     class Config:
         env_file = ".env"
