@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,9 +57,9 @@ export default function LoginPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={login.isPending}>
+          <LoadingButton type="submit" className="w-full" loading={login.isPending}>
             {login.isPending ? "Đang đăng nhập..." : "Đăng nhập"}
-          </Button>
+          </LoadingButton>
           <p className="text-sm text-muted-foreground text-center">
             Chưa có tài khoản?{" "}
             <Link href="/register" className="underline text-primary">

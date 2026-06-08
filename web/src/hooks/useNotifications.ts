@@ -34,7 +34,7 @@ export function useTaskNotifications(enabled = true) {
     queryKey: ["task-notifications"],
     queryFn: () => api.get("/notifications").then((r: AxiosResponse) => r.data),
     enabled,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 600_000,
+    staleTime: 600_000,
   });
 }

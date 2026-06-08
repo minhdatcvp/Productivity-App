@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, CreditCard, BookOpen, RotateCcw, X } from "lucide-react";
+import { Plus, Trash2, CreditCard, BookOpen, RotateCcw, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModuleItems, useCreateItem, useDeleteItem, useSubmitReview, type VocabItem } from "@/hooks/useLearn";
+import { useLookupVocab } from "@/hooks/useLearnAI";
 
 interface Props {
   subjectId: string;
@@ -139,9 +141,22 @@ export function VocabModule({ subjectId, moduleId, flashcardModuleId }: Props) {
   const createItem = useCreateItem(subjectId, moduleId);
   const deleteItem = useDeleteItem(subjectId, moduleId);
   const createFlashcard = useCreateItem(subjectId, flashcardModuleId ?? "");
+  const submitReview = useSubmitReview(subjectId, moduleId);
   const [converting, setConverting] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [learning, setLearning] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  async function handleQuickReview(item: VocabItem, quality: number) {
+    setReviewingId(item.id);
+    try {
+      await submitReview.mutateAsync({ item_id: item.id, quality });
+    } catch {
+      toast.error("Lưu thất bại");
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   const vocabItems = items as VocabItem[];
   const newItems = vocabItems.filter((i) => i.repetitions === 0);
@@ -166,6 +181,20 @@ export function VocabModule({ subjectId, moduleId, flashcardModuleId }: Props) {
   const [meaning, setMeaning] = useState("");
   const [pronunciation, setPronunciation] = useState("");
   const [example, setExample] = useState("");
+  const lookup = useLookupVocab(subjectId, moduleId);
+
+  async function handleLookup() {
+    const w = word.trim();
+    if (!w) return;
+    try {
+      const data = await lookup.mutateAsync(w);
+      setMeaning(data.meaning || "");
+      setPronunciation(data.pronunciation || "");
+      setExample(data.example || "");
+    } catch {
+      toast.error("Tra cứu thất bại");
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -194,13 +223,33 @@ export function VocabModule({ subjectId, moduleId, flashcardModuleId }: Props) {
   }
 
   function VocabRow({ item }: { item: VocabItem }) {
+    const isReviewing = reviewingId === item.id;
     return (
       <div className="flex items-start gap-3 p-3 rounded-lg border">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="font-medium">{item.word}</p>
           {item.pronunciation && <p className="text-xs text-muted-foreground">[{item.pronunciation}]</p>}
           <p className="text-sm mt-0.5">{item.meaning}</p>
           {item.example && <p className="text-xs italic text-muted-foreground mt-1">"{item.example}"</p>}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              disabled={isReviewing}
+              onClick={() => handleQuickReview(item, 1)}
+            >
+              Cần học thêm
+            </Button>
+            <Button
+              size="xs"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={isReviewing}
+              onClick={() => handleQuickReview(item, 4)}
+            >
+              Đã nhớ ✓
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-xs text-muted-foreground">⏱ {item.interval}d</span>
@@ -287,7 +336,25 @@ export function VocabModule({ subjectId, moduleId, flashcardModuleId }: Props) {
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
               <Label>Từ / Cụm từ *</Label>
-              <Input value={word} onChange={(e) => setWord(e.target.value)} placeholder="hello" className="mt-1" />
+              <div className="flex gap-2 mt-1">
+                <Input
+                  value={word}
+                  onChange={(e) => setWord(e.target.value)}
+                  placeholder="hello"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!word.trim() || lookup.isPending}
+                  onClick={handleLookup}
+                  title="Search"
+                >
+                  {lookup.isPending ? <Spinner className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  Search
+                </Button>
+              </div>
             </div>
             <div>
               <Label>Nghĩa *</Label>

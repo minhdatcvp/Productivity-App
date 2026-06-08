@@ -23,6 +23,8 @@ from app.schemas.learn_v2 import (
     AIConfigUpdate,
     AIConfirmRequest,
     AIGenerateResponse,
+    AILookupVocabRequest,
+    AILookupVocabResponse,
     AIQuizGenerateRequest,
     SubjectQuizOut,
     QuizSubmit,
@@ -175,6 +177,37 @@ async def ai_generate(
     else:
         # CODE_SNIPPET and others — not AI-generated
         raise HTTPException(status_code=400, detail=f"Block type {block_type} không hỗ trợ AI generate")
+
+
+# ── AI Lookup Vocab ───────────────────────────────────────────────────────────
+
+@router.post("/{subject_id}/modules/{module_id}/ai/lookup-vocab", response_model=AILookupVocabResponse)
+async def ai_lookup_vocab(
+    subject_id: str,
+    module_id: str,
+    body: AILookupVocabRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    module = await _get_module(subject_id, module_id, db, current_user)
+    if module.block.block_type != BlockType.VOCABULARY:
+        raise HTTPException(status_code=400, detail="Module không phải VOCABULARY")
+
+    word = body.word.strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="Từ trống")
+
+    subj_result = await db.execute(select(Subject).where(Subject.id == subject_id))
+    subject = subj_result.scalar_one_or_none()
+    subject_name = subject.name if subject else subject_id
+
+    data = await learning_ai_service.lookup_vocab_word(word=word, subject_name=subject_name)
+    return AILookupVocabResponse(
+        word=data.get("word", word),
+        meaning=data.get("meaning", ""),
+        pronunciation=data.get("pronunciation", "") or "",
+        example=data.get("example", "") or "",
+    )
 
 
 # ── AI Confirm ────────────────────────────────────────────────────────────────

@@ -51,6 +51,28 @@ async def generate_vocab_items(
     return parsed.get("items", [])
 
 
+async def lookup_vocab_word(word: str, subject_name: str) -> dict:
+    msg = (
+        f"Chủ đề: {subject_name}\n"
+        f"Từ cần tra: {word}\n\n"
+        "Tra cứu từ vựng này. Suy ra ngôn ngữ nguồn từ chủ đề. "
+        "Cung cấp nghĩa tiếng Việt rõ ràng, ngắn gọn. "
+        "Pronunciation là IPA hoặc romanization (để chuỗi rỗng nếu không có). "
+        "Example là 1 câu ngắn dùng từ này (kèm dịch tiếng Việt trong dấu ngoặc đơn). "
+        'Trả về JSON: {"word": str, "meaning": str, "pronunciation": str, "example": str}'
+    )
+    response = await _get_client().chat.completions.create(
+        model=_MODEL,
+        messages=[
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": msg},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=512,
+    )
+    return json.loads(response.choices[0].message.content)
+
+
 async def generate_flashcards(
     count: int,
     topics: list[str],

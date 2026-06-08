@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
   Dialog,
   DialogContent,
@@ -80,9 +80,9 @@ export function CreateTaskDialog({ goalId, children }: Props) {
             </Select>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={create.isPending}>
+            <LoadingButton type="submit" loading={create.isPending}>
               {create.isPending ? "Đang thêm..." : "Thêm nhiệm vụ"}
-            </Button>
+            </LoadingButton>
           </DialogFooter>
         </form>
       </DialogContent>

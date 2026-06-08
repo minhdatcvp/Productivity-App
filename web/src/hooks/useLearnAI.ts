@@ -65,6 +65,24 @@ export function useUpdateAIConfig(subjectId: string, moduleId: string) {
   });
 }
 
+// ── AI Lookup Vocab ──────────────────────────────────────────────────────────
+
+export interface VocabLookupResult {
+  word: string;
+  meaning: string;
+  pronunciation: string;
+  example: string;
+}
+
+export function useLookupVocab(subjectId: string, moduleId: string) {
+  return useMutation<VocabLookupResult, unknown, string>({
+    mutationFn: (word) =>
+      api
+        .post(`/learn/subjects/${subjectId}/modules/${moduleId}/ai/lookup-vocab`, { word })
+        .then((r: AxiosResponse) => r.data),
+  });
+}
+
 // ── AI Generate / Confirm ────────────────────────────────────────────────────
 
 export function useAIGenerate(subjectId: string, moduleId: string) {

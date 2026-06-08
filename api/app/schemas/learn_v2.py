@@ -293,6 +293,17 @@ class AIQuizGenerateRequest(BaseModel):
     count: int = 10
 
 
+class AILookupVocabRequest(BaseModel):
+    word: str
+
+
+class AILookupVocabResponse(BaseModel):
+    word: str
+    meaning: str
+    pronunciation: str = ""
+    example: str = ""
+
+
 # ── SRS ───────────────────────────────────────────────────────────────────────
 
 class SRSReviewRequest(BaseModel):
