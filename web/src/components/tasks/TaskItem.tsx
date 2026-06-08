@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, ChevronDown, ChevronRight, Minus, StickyNote, Trash2 } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronRight, Minus, Pin, StickyNote, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
@@ -14,7 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Task, TaskPriority, TaskStatus, useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
+import {
+  Task,
+  TaskPriority,
+  TaskStatus,
+  useDeleteTask,
+  useUpdatePinnedDailyStatus,
+  useUpdateTask,
+} from "@/hooks/useTasks";
 
 const PRIORITY_BADGE: Record<TaskPriority, string | null> = {
   HIGH: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
@@ -48,6 +55,8 @@ interface Props {
   task: Task;
   goalId?: string;
   depth?: number;
+  // current period date (YYYY-MM-DD) — required to write pinned per-day status
+  period?: string;
   // passed from parent when in multi-select mode
   selectMode?: boolean;
   selectedIds?: Set<string>;
@@ -58,6 +67,7 @@ export function TaskItem({
   task,
   goalId,
   depth = 0,
+  period,
   selectMode: externalSelectMode,
   selectedIds: externalSelectedIds,
   onToggleSelect: externalToggleSelect,
@@ -75,6 +85,7 @@ export function TaskItem({
 
   const remove = useDeleteTask(goalId);
   const update = useUpdateTask(goalId);
+  const updatePinnedStatus = useUpdatePinnedDailyStatus();
   const qc = useQueryClient();
 
   // if external props provided (e.g. from DailyTaskList), use them; otherwise manage own state
@@ -102,9 +113,27 @@ export function TaskItem({
 
   function handleStatusChange(value: string | null) {
     if (!value) return;
+    if (task.is_pinned && period) {
+      updatePinnedStatus.mutate(
+        { taskId: task.id, date: period, status: value as TaskStatus },
+        { onError: () => toast.error("Cập nhật thất bại") }
+      );
+    } else {
+      update.mutate(
+        { taskId: task.id, status: value as TaskStatus },
+        { onError: () => toast.error("Cập nhật thất bại") }
+      );
+    }
+  }
+
+  function handleTogglePin() {
     update.mutate(
-      { taskId: task.id, status: value as TaskStatus },
-      { onError: () => toast.error("Cập nhật thất bại") }
+      { taskId: task.id, is_pinned: !task.is_pinned },
+      {
+        onError: () => toast.error("Cập nhật ghim thất bại"),
+        onSuccess: () =>
+          toast.success(task.is_pinned ? "Đã bỏ ghim" : "Đã ghim — hiện mỗi ngày"),
+      }
     );
   }
 
@@ -199,6 +228,14 @@ export function TaskItem({
           </span>
         )}
 
+        {/* Pin indicator — only at root level */}
+        {task.is_pinned && depth === 0 && (
+          <Pin
+            className="h-3 w-3 fill-amber-500 text-amber-500 flex-shrink-0"
+            aria-label="Ghim mỗi ngày"
+          />
+        )}
+
         {/* Title */}
         {editingTitle ? (
           <input
@@ -248,6 +285,21 @@ export function TaskItem({
             className="text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0 cursor-pointer"
           >
             <StickyNote className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Pin toggle — only at root level on daily lists (no goalId) */}
+        {!isInSelectMode && depth === 0 && !goalId && (
+          <button
+            onClick={handleTogglePin}
+            title={task.is_pinned ? "Bỏ ghim" : "Ghim mỗi ngày"}
+            className={`flex-shrink-0 cursor-pointer transition-colors ${
+              task.is_pinned
+                ? "text-amber-500 hover:text-amber-600"
+                : "text-muted-foreground/40 hover:text-muted-foreground"
+            }`}
+          >
+            <Pin className={`h-3.5 w-3.5 ${task.is_pinned ? "fill-amber-500" : ""}`} />
           </button>
         )}
 
@@ -356,6 +408,7 @@ export function TaskItem({
             task={sub}
             goalId={goalId}
             depth={depth + 1}
+            period={period}
             selectMode={isInSelectMode}
             selectedIds={activeSelectedIds}
             onToggleSelect={handleToggleSelect}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, Minus, Plus, X } from "lucide-react";
+import { CalendarDays, CheckSquare, Minus, Pin, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
@@ -21,20 +21,30 @@ export function DailyTaskList({ period }: Props) {
   const qc = useQueryClient();
 
   const [newTitle, setNewTitle] = useState("");
+  const [newDate, setNewDate] = useState<string>(period);
+  const [pinNew, setPinNew] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    setNewDate(period);
+  }, [period]);
+
   function handleAdd() {
     const title = newTitle.trim();
     if (!title) return;
-    createTask.mutate(
-      { title, due_date: period },
-      {
-        onSuccess: () => setNewTitle(""),
-        onError: () => toast.error("Tạo task thất bại"),
-      }
-    );
+    const payload: Parameters<typeof createTask.mutate>[0] = pinNew
+      ? { title, is_pinned: true, pinned_since: period }
+      : { title, due_date: newDate || period };
+    createTask.mutate(payload, {
+      onSuccess: () => {
+        setNewTitle("");
+        setPinNew(false);
+        setNewDate(period);
+      },
+      onError: () => toast.error("Tạo task thất bại"),
+    });
   }
 
   function handleToggleSelect(id: string) {
@@ -145,6 +155,7 @@ export function DailyTaskList({ period }: Props) {
             <TaskItem
               key={task.id}
               task={task}
+              period={period}
               selectMode={selectMode}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
@@ -165,10 +176,45 @@ export function DailyTaskList({ period }: Props) {
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAdd();
           }}
-          placeholder="Thêm task mới... (Enter để lưu)"
+          placeholder={
+            pinNew
+              ? "Task ghim mỗi ngày... (Enter để lưu)"
+              : "Thêm task mới... (Enter để lưu)"
+          }
           className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground/50"
           disabled={createTask.isPending}
         />
+
+        {/* Date picker — hidden when pin mode is on */}
+        {!pinNew && (
+          <label
+            className="relative flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0"
+            title="Chọn ngày"
+          >
+            <CalendarDays className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {newDate !== period ? newDate.slice(5) : ""}
+            </span>
+            <input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value || period)}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          </label>
+        )}
+
+        {/* Pin toggle */}
+        <button
+          type="button"
+          onClick={() => setPinNew((v) => !v)}
+          title={pinNew ? "Bỏ ghim — task chỉ cho ngày này" : "Ghim — task hiện mỗi ngày"}
+          className={`flex-shrink-0 cursor-pointer transition-colors ${
+            pinNew ? "text-amber-500" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Pin className={`h-4 w-4 ${pinNew ? "fill-amber-500" : ""}`} />
+        </button>
       </div>
     </div>
   );

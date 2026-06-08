@@ -23,8 +23,11 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
-      useAuthStore.getState().clearAuth();
-      window.location.href = "/login";
+      const hadToken = !!localStorage.getItem("access_token");
+      if (hadToken) {
+        useAuthStore.getState().clearAuth();
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

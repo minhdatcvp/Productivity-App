@@ -18,6 +18,8 @@ export interface Task {
   status: TaskStatus;
   notes: string | null;
   due_date: string | null;
+  is_pinned: boolean;
+  pinned_since: string | null;
   order: number;
   created_at: string;
   subtasks: Task[];
@@ -118,6 +120,8 @@ export function useCreateTask() {
       title: string;
       completion_type?: "CHECKBOX" | "PERCENTAGE";
       due_date?: string;
+      is_pinned?: boolean;
+      pinned_since?: string;
       order?: number;
     }) => api.post("/tasks", data).then((r: AxiosResponse) => r.data),
     onSuccess: (_data, vars) => {
@@ -154,11 +158,40 @@ export function useUpdateTask(goalId?: string) {
       notes?: string | null;
       status?: TaskStatus;
       order?: number;
+      is_pinned?: boolean;
+      pinned_since?: string | null;
     }) => api.patch(`/tasks/${taskId}`, data).then((r: AxiosResponse) => r.data),
     onSuccess: () => {
       if (goalId) qc.invalidateQueries({ queryKey: ["goal", goalId] });
       qc.invalidateQueries({ queryKey: ["goals"] });
       qc.invalidateQueries({ queryKey: ["daily-tasks"] });
+      qc.invalidateQueries({ queryKey: ["streaks"] });
+      qc.invalidateQueries({ queryKey: ["streak-history"] });
+    },
+  });
+}
+
+export function useUpdatePinnedDailyStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      date,
+      status,
+      completed_value,
+    }: {
+      taskId: string;
+      date: string;
+      status?: TaskStatus;
+      completed_value?: number | null;
+    }) =>
+      api
+        .patch(`/tasks/${taskId}/pinned-status`, { date, status, completed_value })
+        .then((r: AxiosResponse) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["daily-tasks"] });
+      qc.invalidateQueries({ queryKey: ["streaks"] });
+      qc.invalidateQueries({ queryKey: ["streak-history"] });
     },
   });
 }

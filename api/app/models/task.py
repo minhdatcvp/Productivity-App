@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,6 +73,8 @@ class Task(Base):
     priority: Mapped[TaskPriority] = mapped_column(Enum(TaskPriority), default=TaskPriority.NONE, server_default="NONE")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    pinned_since: Mapped[date | None] = mapped_column(Date, nullable=True)
     order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -81,6 +83,27 @@ class Task(Base):
     goal: Mapped["Goal | None"] = relationship("Goal", back_populates="tasks", foreign_keys=[goal_id])
     subtasks: Mapped[list["Task"]] = relationship("Task", back_populates="parent")
     parent: Mapped["Task | None"] = relationship("Task", back_populates="subtasks", remote_side=[id])
+    pinned_completions: Mapped[list["PinnedTaskCompletion"]] = relationship(
+        "PinnedTaskCompletion", back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class PinnedTaskCompletion(Base):
+    __tablename__ = "pinned_task_completions"
+
+    task_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True
+    )
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus), default=TaskStatus.TODO, server_default="TODO", nullable=False
+    )
+    completed_value: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    task: Mapped["Task"] = relationship("Task", back_populates="pinned_completions")
 
 
 class Streak(Base):

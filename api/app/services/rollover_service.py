@@ -9,12 +9,13 @@ from app.services.streak_service import prev_period
 
 
 async def rollover_daily_tasks(db: AsyncSession, user_id: str, to_date: date) -> int:
-    """Move incomplete standalone tasks with due_date < to_date to to_date."""
+    """Move incomplete standalone tasks with due_date < to_date to to_date. Pinned tasks are skipped — they appear every day on their own."""
     result = await db.execute(
         select(Task).where(
             Task.user_id == user_id,
             Task.goal_id.is_(None),
             Task.parent_id.is_(None),
+            Task.is_pinned.is_(False),
             Task.status.in_([TaskStatus.TODO, TaskStatus.IN_PROGRESS]),
             cast(Task.due_date, SADate) < to_date,
         )

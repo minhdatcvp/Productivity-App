@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -78,6 +78,8 @@ class TaskResponse(BaseModel):
     status: TaskStatus
     notes: str | None
     due_date: datetime | None
+    is_pinned: bool = False
+    pinned_since: date | None = None
     order: int
     created_at: datetime
     subtasks: list["TaskResponse"] = []
@@ -109,6 +111,8 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.NONE
     completion_type: CompletionType = CompletionType.CHECKBOX
     due_date: datetime | None = None
+    is_pinned: bool = False
+    pinned_since: date | None = None
     order: int = 0
     notes: str | None = None
 
@@ -120,9 +124,17 @@ class TaskUpdate(BaseModel):
     due_date: datetime | None = None
     notes: str | None = None
     status: TaskStatus | None = None
+    is_pinned: bool | None = None
+    pinned_since: date | None = None
 
 
 class TaskComplete(BaseModel):
+    completed_value: int | None = None
+
+
+class PinnedDailyStatusRequest(BaseModel):
+    date: date
+    status: TaskStatus | None = None
     completed_value: int | None = None
 
 

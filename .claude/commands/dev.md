@@ -1,4 +1,4 @@
-﻿Run the PowerShell script to start all development services (PostgreSQL, Redis, FastAPI, Next.js).
+﻿Run the PowerShell script to start all development services (FastAPI, Next.js). PostgreSQL is on Neon and Redis is on Upstash — no local start needed.
 
 Execute this command using PowerShell:
 
