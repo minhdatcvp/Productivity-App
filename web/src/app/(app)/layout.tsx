@@ -98,7 +98,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
-            <Link key={href} href={href} className="flex-1">
+            // prefetch={false}: mobile nav duplicates the sidebar hrefs — skip its
+            // prefetch to halve background RSC requests (sidebar keeps prefetch on desktop)
+            <Link key={href} href={href} className="flex-1" prefetch={false}>
               <div
                 className={`flex flex-col items-center gap-1 py-3 text-xs font-medium ${
                   active ? "text-primary" : "text-muted-foreground"
