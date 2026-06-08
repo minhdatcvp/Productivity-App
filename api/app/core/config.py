@@ -21,9 +21,12 @@ class Settings(BaseSettings):
 
     @property
     def db_url_clean(self) -> str:
-        """asyncpg doesn't accept sslmode/channel_binding params; strip them."""
+        """Strip sslmode/channel_binding params and ensure asyncpg driver prefix."""
         url = re.sub(r"[?&](sslmode|channel_binding)=[^&]*", "", self.database_url)
-        return url.rstrip("?&")
+        url = url.rstrip("?&")
+        if url.startswith("postgresql://") and "+asyncpg" not in url:
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
 
     @property
     def db_ssl(self) -> bool:
