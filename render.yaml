@@ -16,4 +16,5 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://web-chi-sooty-75.vercel.app
+        # Set in the Render dashboard to the deployed Vercel URL (comma-separated for multiple).
+        sync: false

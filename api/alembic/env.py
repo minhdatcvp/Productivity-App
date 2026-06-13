@@ -17,7 +17,6 @@ if config.config_file_name is not None:
 from app.core.database import Base
 import app.models.user
 import app.models.task
-import app.models.learn
 
 target_metadata = Base.metadata
 

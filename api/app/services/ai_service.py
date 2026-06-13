@@ -1,28 +1,9 @@
 import json
 
-from openai import AsyncOpenAI, OpenAI
-
 from app.core.config import settings
+from app.core.llm import get_async_client, get_sync_client
 
-_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-_MODEL = "llama-3.3-70b-versatile"
-
-_async_client: AsyncOpenAI | None = None
-_sync_client: OpenAI | None = None
-
-
-def _get_async_client() -> AsyncOpenAI:
-    global _async_client
-    if _async_client is None:
-        _async_client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=_GROQ_BASE_URL)
-    return _async_client
-
-
-def _get_sync_client() -> OpenAI:
-    global _sync_client
-    if _sync_client is None:
-        _sync_client = OpenAI(api_key=settings.groq_api_key, base_url=_GROQ_BASE_URL)
-    return _sync_client
+_MODEL = settings.groq_model
 
 
 _BREAKDOWN_SYSTEM = (
@@ -55,7 +36,7 @@ async def breakdown_goal(
         content += f"\nYêu cầu bổ sung: {refinement}"
     content += "\n\nTạo danh sách nhiệm vụ cụ thể để đạt được mục tiêu này."
 
-    response = await _get_async_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _BREAKDOWN_SYSTEM},
@@ -101,7 +82,7 @@ async def breakdown_daily(title: str, detail: str | None, period: str, refinemen
         content += f"\nYêu cầu bổ sung: {refinement}"
     content += "\n\nTạo danh sách action items cụ thể cho ngày này."
 
-    response = await _get_async_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _DAILY_BREAKDOWN_SYSTEM},
@@ -133,7 +114,7 @@ def summarize_period_sync(user_name: str, goals_data: list[dict]) -> dict:
     content += f"Dữ liệu mục tiêu:\n{json.dumps(goals_data, ensure_ascii=False, indent=2)}"
     content += "\n\nPhân tích tiến độ và đưa ra đánh giá."
 
-    response = _get_sync_client().chat.completions.create(
+    response = get_sync_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SUMMARY_SYSTEM},

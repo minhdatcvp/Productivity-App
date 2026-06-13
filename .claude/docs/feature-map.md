@@ -53,14 +53,19 @@
 | FE components | `web/src/components/tasks/` → `NotificationBell`, `RolloverBanner` |
 | FE hook | `web/src/hooks/useNotifications.ts` |
 
-## Language Learning (Phase 4 — chưa implement)
+## Language Learning (Phase 4 — học tập đa chủ đề, data-driven)
 | Layer | File |
 |-------|------|
-| API router | `api/app/routers/` → `learn.py` *(chưa tạo)* |
-| SRS service | `api/app/services/srs_service.py` *(chưa tạo)* |
-| DB model | `api/app/models/learn.py` → `UserLanguage`, `Vocabulary`, `GrammarNote`, `LanguageTest` |
-| Celery worker — test gen | `api/app/workers/test_gen_worker.py` |
-| FE page | `web/src/app/(app)/learn/page.tsx` |
+| API router — subjects/items/SRS | `api/app/routers/learn_v2.py` |
+| API router — AI generate/quiz | `api/app/routers/learn_ai.py` |
+| Catalog/template AI | `api/app/services/catalog_service.py` |
+| Learning content AI | `api/app/services/learning_ai_service.py` |
+| SRS service | `api/app/services/srs_service.py` → `compute_next_review` |
+| Shared module helper | `api/app/services/learn_service.py` → `get_module` |
+| DB model | `api/app/models/learn_v2.py` → `Subject`, `SubjectModule`, `CatalogBlock`, `LearningTemplate`, `FlashCard`, `VocabItem`, `Note`, `CodeSnippet`, `SubjectQuiz` |
+| FE pages | `web/src/app/(app)/learn/page.tsx`, `learn/[id]/page.tsx` |
+| FE hooks | `web/src/hooks/useLearn.ts`, `useLearnAI.ts` |
+| FE components | `web/src/components/learn/` |
 
 ## Infrastructure / Shared
 | Layer | File |

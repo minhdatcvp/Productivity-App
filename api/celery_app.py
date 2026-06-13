@@ -6,7 +6,7 @@ celery = Celery(
     "productivity",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.workers.summary_worker", "app.workers.test_gen_worker", "app.workers.profile_worker"],
+    include=["app.workers.summary_worker", "app.workers.profile_worker"],
 )
 
 celery.conf.update(

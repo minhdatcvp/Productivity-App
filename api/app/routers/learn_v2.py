@@ -21,6 +21,7 @@ from app.schemas.learn_v2 import (
     SubjectCreate, SubjectOut,
     VocabItemCreate, VocabItemOut, VocabItemUpdate,
 )
+from app.services.learn_service import get_module
 from app.services.srs_service import compute_next_review
 
 router = APIRouter(prefix="/learn", tags=["learn"])
@@ -116,25 +117,6 @@ async def delete_subject(
     await db.commit()
 
 
-# ── Helper: verify module ownership ──────────────────────────────────────────
-
-async def _get_module(db: AsyncSession, subject_id: str, module_id: str, user_id: str) -> SubjectModule:
-    result = await db.execute(
-        select(SubjectModule)
-        .join(Subject)
-        .where(
-            SubjectModule.id == module_id,
-            SubjectModule.subject_id == subject_id,
-            Subject.user_id == user_id,
-        )
-        .options(selectinload(SubjectModule.block))
-    )
-    mod = result.scalar_one_or_none()
-    if not mod:
-        raise HTTPException(status_code=404, detail="Module not found")
-    return mod
-
-
 # ── Items: dispatch by block_type ─────────────────────────────────────────────
 
 @router.get("/subjects/{subject_id}/modules/{module_id}/items")
@@ -144,7 +126,7 @@ async def list_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     return await _fetch_items(db, mod)
 
 
@@ -176,7 +158,7 @@ async def create_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     bt = mod.block.block_type
 
     item_id = str(uuid.uuid4())
@@ -210,7 +192,7 @@ async def update_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     bt = mod.block.block_type
 
     item = await _get_item(db, bt, item_id, mod.id)
@@ -232,7 +214,7 @@ async def delete_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     item = await _get_item(db, mod.block.block_type, item_id, mod.id)
     await db.delete(item)
     await db.commit()
@@ -276,7 +258,7 @@ async def get_due_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     now = datetime.now(timezone.utc)
     bt = mod.block.block_type
 
@@ -304,7 +286,7 @@ async def submit_review(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    mod = await _get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
     bt = mod.block.block_type
 
     if bt not in (BlockType.FLASHCARD, BlockType.VOCABULARY):

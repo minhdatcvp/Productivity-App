@@ -238,17 +238,6 @@ export function useCreateItem(subjectId: string, moduleId: string) {
   });
 }
 
-export function useUpdateItem(subjectId: string, moduleId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ itemId, ...data }: { itemId: string } & Record<string, unknown>) =>
-      api
-        .patch(`/learn/subjects/${subjectId}/modules/${moduleId}/items/${itemId}`, data)
-        .then((r: AxiosResponse) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["module-items", subjectId, moduleId] }),
-  });
-}
-
 export function useDeleteItem(subjectId: string, moduleId: string) {
   const qc = useQueryClient();
   return useMutation({

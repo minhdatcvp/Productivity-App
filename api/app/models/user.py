@@ -21,7 +21,6 @@ class User(Base):
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user")
     tasks: Mapped[list["Task"]] = relationship("Task", back_populates="user")
     streaks: Mapped[list["Streak"]] = relationship("Streak", back_populates="user")
-    languages: Mapped[list["UserLanguage"]] = relationship("UserLanguage", back_populates="user")
 
 
 class UserProfile(Base):

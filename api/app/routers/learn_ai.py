@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -30,32 +29,9 @@ from app.schemas.learn_v2 import (
     QuizSubmit,
 )
 from app.services import learning_ai_service
+from app.services.learn_service import get_module
 
 router = APIRouter(prefix="/learn/subjects", tags=["learn-ai"])
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-async def _get_module(
-    subject_id: str,
-    module_id: str,
-    db: AsyncSession,
-    current_user: User,
-) -> SubjectModule:
-    result = await db.execute(
-        select(SubjectModule)
-        .join(Subject, SubjectModule.subject_id == Subject.id)
-        .where(
-            SubjectModule.id == module_id,
-            SubjectModule.subject_id == subject_id,
-            Subject.user_id == current_user.id,
-        )
-        .options(selectinload(SubjectModule.block))
-    )
-    module = result.scalar_one_or_none()
-    if not module:
-        raise HTTPException(status_code=404, detail="Module not found")
-    return module
 
 
 # ── AI Config ─────────────────────────────────────────────────────────────────
@@ -67,7 +43,7 @@ async def get_ai_config(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    module = await _get_module(subject_id, module_id, db, current_user)
+    module = await get_module(db, subject_id, module_id, current_user.id)
     config = module.config or {}
     return AIConfigOut(
         ai_enabled=config.get("ai_enabled", False),
@@ -87,7 +63,7 @@ async def update_ai_config(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    module = await _get_module(subject_id, module_id, db, current_user)
+    module = await get_module(db, subject_id, module_id, current_user.id)
     config = dict(module.config or {})
     updates = body.model_dump(exclude_none=True)
     config.update(updates)
@@ -114,7 +90,7 @@ async def ai_generate(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    module = await _get_module(subject_id, module_id, db, current_user)
+    module = await get_module(db, subject_id, module_id, current_user.id)
     block_type: BlockType = module.block.block_type
     config = module.config or {}
 
@@ -189,7 +165,7 @@ async def ai_lookup_vocab(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    module = await _get_module(subject_id, module_id, db, current_user)
+    module = await get_module(db, subject_id, module_id, current_user.id)
     if module.block.block_type != BlockType.VOCABULARY:
         raise HTTPException(status_code=400, detail="Module không phải VOCABULARY")
 
@@ -220,7 +196,7 @@ async def ai_confirm(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    module = await _get_module(subject_id, module_id, db, current_user)
+    module = await get_module(db, subject_id, module_id, current_user.id)
     block_type: BlockType = module.block.block_type
     created = 0
 
@@ -280,7 +256,7 @@ async def ai_quiz(
     current_user: User = Depends(get_current_user),
 ):
     # Verify module ownership
-    await _get_module(subject_id, module_id, db, current_user)
+    await get_module(db, subject_id, module_id, current_user.id)
 
     # Subject name
     subj_result = await db.execute(
@@ -366,7 +342,7 @@ async def list_quizzes(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_module(subject_id, module_id, db, current_user)
+    await get_module(db, subject_id, module_id, current_user.id)
     result = await db.execute(
         select(SubjectQuiz)
         .where(SubjectQuiz.subject_mod_id == module_id)
@@ -386,7 +362,7 @@ async def submit_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_module(subject_id, module_id, db, current_user)
+    await get_module(db, subject_id, module_id, current_user.id)
 
     quiz_result = await db.execute(
         select(SubjectQuiz).where(

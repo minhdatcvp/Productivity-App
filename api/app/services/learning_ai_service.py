@@ -1,20 +1,9 @@
 import json
 
-from openai import AsyncOpenAI
-
 from app.core.config import settings
+from app.core.llm import get_async_client
 
-_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-_MODEL = "llama-3.3-70b-versatile"
-
-_async_client: AsyncOpenAI | None = None
-
-
-def _get_client() -> AsyncOpenAI:
-    global _async_client
-    if _async_client is None:
-        _async_client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=_GROQ_BASE_URL)
-    return _async_client
+_MODEL = settings.groq_model
 
 
 _SYSTEM = (
@@ -38,7 +27,7 @@ async def generate_vocab_items(
         "Tạo danh sách từ vựng. "
         'Trả về JSON: {"items": [{"word": str, "meaning": str, "pronunciation": str, "example": str}]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -61,7 +50,7 @@ async def lookup_vocab_word(word: str, subject_name: str) -> dict:
         "Example là 1 câu ngắn dùng từ này (kèm dịch tiếng Việt trong dấu ngoặc đơn). "
         'Trả về JSON: {"word": str, "meaning": str, "pronunciation": str, "example": str}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -87,7 +76,7 @@ async def generate_flashcards(
         "Tạo danh sách flashcard. "
         'Trả về JSON: {"items": [{"front": str, "back": str}]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -107,7 +96,7 @@ async def generate_note(topic: str, subject_name: str) -> dict:
         "Tạo một ghi chú học tập chi tiết. "
         'Trả về JSON: {"title": str, "content": str, "tags": [str]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -131,7 +120,7 @@ async def generate_exercises(
         "Tạo danh sách bài tập thực hành. "
         'Trả về JSON: {"items": [{"title": str, "content": str}]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -158,7 +147,7 @@ async def generate_quiz_questions(
         "Câu hỏi phải bám sát nội dung đã cung cấp. "
         'Trả về JSON: {"questions": [{"id": int, "question": str, "options": {"A": str, "B": str, "C": str, "D": str}, "answer": str, "explanation": str}]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},
@@ -208,7 +197,7 @@ async def evaluate_quiz(
         '{"summary": str, "strong_areas": [str], "weak_areas": [str], "next_plan": str, '
         '"per_question": [{"id": int, "correct": bool, "note": str}]}'
     )
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM},

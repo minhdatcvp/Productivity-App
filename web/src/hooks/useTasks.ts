@@ -78,18 +78,6 @@ export function useCreateGoal() {
   });
 }
 
-export function useUpdateGoal(goalId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: { title?: string; description?: string; status?: string }) =>
-      api.put(`/goals/${goalId}`, data).then((r: AxiosResponse) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["goal", goalId] });
-    },
-  });
-}
-
 export function useDeleteGoal() {
   const qc = useQueryClient();
   return useMutation({
@@ -128,20 +116,6 @@ export function useCreateTask() {
       if (vars.goal_id) qc.invalidateQueries({ queryKey: ["goal", vars.goal_id] });
       qc.invalidateQueries({ queryKey: ["goals"] });
       qc.invalidateQueries({ queryKey: ["daily-tasks"] });
-    },
-  });
-}
-
-export function useCompleteTask(goalId?: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ taskId, completed_value }: { taskId: string; completed_value: number | null }) =>
-      api.patch(`/tasks/${taskId}/complete`, { completed_value }).then((r: AxiosResponse) => r.data),
-    onSuccess: () => {
-      if (goalId) qc.invalidateQueries({ queryKey: ["goal", goalId] });
-      qc.invalidateQueries({ queryKey: ["goals"] });
-      qc.invalidateQueries({ queryKey: ["daily-tasks"] });
-      qc.invalidateQueries({ queryKey: ["streaks"] });
     },
   });
 }

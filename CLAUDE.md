@@ -19,8 +19,8 @@ Web app cá nhân gồm 2 module:
 | Frontend | Next.js 15 (App Router) · TypeScript · Tailwind · shadcn/ui · TanStack Query · Zustand · Axios |
 | Backend | Python FastAPI · SQLAlchemy 2 async · Alembic · Celery |
 | Database | PostgreSQL 18 · Redis |
-| AI | Claude API (`claude-sonnet-4-6`) · Anthropic Python SDK |
-| Deploy | Vercel (FE) · Railway (BE + DB) |
+| AI | Groq (`llama-3.3-70b-versatile`) · OpenAI-compatible SDK (client dùng chung: `app/core/llm.py`) |
+| Deploy | Vercel (FE) · Render (BE, Docker) · Neon (Postgres) · Upstash (Redis) |
 | Auth | passlib/bcrypt + PyJWT + Redis sessions (self-hosted) |
 
 ---
@@ -42,11 +42,11 @@ News/
 ├── api/                        # FastAPI → Railway
 │   ├── app/
 │   │   ├── core/               # config.py, database.py, redis.py, deps.py
-│   │   ├── models/             # SQLAlchemy: user.py, task.py, learn.py
+│   │   ├── models/             # SQLAlchemy: user.py, task.py, learn_v2.py
 │   │   ├── routers/            # auth.py, tasks.py, goals.py, streaks.py, ai.py, notifications.py
 │   │   ├── schemas/            # Pydantic schemas: auth.py, tasks.py, ai.py
 │   │   ├── services/           # auth_service.py, ai_service.py, streak_service.py, rollover_service.py
-│   │   ├── workers/            # Celery: summary_worker.py, test_gen_worker.py, profile_worker.py
+│   │   ├── workers/            # Celery: summary_worker.py, profile_worker.py
 │   │   └── main.py             # FastAPI app, CORS, include routers
 │   ├── alembic/versions/       # 001_initial_schema.py (đã apply)
 │   ├── celery_app.py

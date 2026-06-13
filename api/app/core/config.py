@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     secret_key: str = "dev-secret-key-change-in-production"
     groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "llama-3.3-70b-versatile"
     cors_origins: str = "http://localhost:3000"
     database_ssl: bool = False
 

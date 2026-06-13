@@ -74,19 +74,19 @@ export default function SubjectDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Button variant="ghost" size="icon" onClick={() => router.push("/learn")}>
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-3xl">{subject.icon}</span>
-          <div>
-            <h1 className="text-xl font-bold">{subject.name}</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold truncate">{subject.name}</h1>
             <p className="text-xs text-muted-foreground">{subject.modules.length} modules</p>
           </div>
         </div>
         {srsModules.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 basis-full sm:basis-auto">
             {srsModules.map((m) => (
               <Button key={m.id} size="sm" onClick={() => setSrsModule({ moduleId: m.id })}>
                 <Brain className="h-4 w-4 mr-1.5" />
@@ -104,9 +104,9 @@ export default function SubjectDetailPage() {
         </p>
       ) : (
         <Tabs defaultValue={subject.modules[0]?.id}>
-          <TabsList className="mb-4 flex-wrap h-auto gap-1">
+          <TabsList className="mb-4 flex-wrap h-auto gap-1 justify-start">
             {subject.modules.map((m) => (
-              <TabsTrigger key={m.id} value={m.id} className="text-xs">
+              <TabsTrigger key={m.id} value={m.id} className="text-xs flex-none">
                 {m.block.name}
                 {(m.block.block_type === "FLASHCARD" || m.block.block_type === "VOCABULARY") && (
                   <SRSBadge subjectId={subject.id} moduleId={m.id} />

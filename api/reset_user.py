@@ -12,7 +12,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.models.learn import GrammarNote, LanguageTest, UserLanguage, Vocabulary
 from app.models.learn_v2 import CatalogBlock, LearningTemplate, Subject
 from app.models.task import AISummary, Goal, Streak, Task
 from app.models.user import User, UserProfile
@@ -50,16 +49,6 @@ async def main():
             if confirm != "y":
                 print("Aborted.")
                 sys.exit(0)
-
-        # ── Learn v1: vocabulary / grammar_notes / language_tests / user_languages ──
-        lang_ids = (await db.execute(
-            select(UserLanguage.id).where(UserLanguage.user_id == uid)
-        )).scalars().all()
-        if lang_ids:
-            await db.execute(delete(Vocabulary).where(Vocabulary.user_lang_id.in_(lang_ids)))
-            await db.execute(delete(GrammarNote).where(GrammarNote.user_lang_id.in_(lang_ids)))
-            await db.execute(delete(LanguageTest).where(LanguageTest.user_lang_id.in_(lang_ids)))
-        await db.execute(delete(UserLanguage).where(UserLanguage.user_id == uid))
 
         # ── Learn v2: subjects (CASCADE → subject_modules → flashcards/vocab_items/notes/code_snippets/quizzes) ──
         await db.execute(delete(Subject).where(Subject.user_id == uid))

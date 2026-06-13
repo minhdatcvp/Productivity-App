@@ -1,20 +1,9 @@
 import json
 
-from openai import AsyncOpenAI
-
 from app.core.config import settings
+from app.core.llm import get_async_client
 
-_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-_MODEL = "llama-3.3-70b-versatile"
-
-_async_client: AsyncOpenAI | None = None
-
-
-def _get_client() -> AsyncOpenAI:
-    global _async_client
-    if _async_client is None:
-        _async_client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=_GROQ_BASE_URL)
-    return _async_client
+_MODEL = settings.groq_model
 
 
 _CATALOG_SYSTEM = (
@@ -37,7 +26,7 @@ async def suggest_catalog_blocks(query: str, existing_names: list[str]) -> list[
         "Gợi ý 3-5 LOẠI BLOCK phù hợp. Tên block phải ngắn gọn, tổng quan (1-3 từ), là tên container, không phải tên bài học cụ thể."
     )
 
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _CATALOG_SYSTEM},
@@ -67,7 +56,7 @@ async def suggest_template_blocks(query: str, available_blocks: list[dict]) -> l
         "Chọn các block phù hợp nhất để tạo template cho mục tiêu này."
     )
 
-    response = await _get_client().chat.completions.create(
+    response = await get_async_client().chat.completions.create(
         model=_MODEL,
         messages=[
             {"role": "system", "content": _TEMPLATE_SUGGEST_SYSTEM},

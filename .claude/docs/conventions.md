@@ -14,14 +14,20 @@
 - Redirect nếu 401: `api.ts` interceptor xử lý tự động
 
 ## AI service pattern
+AI dùng **Groq** qua **OpenAI-compatible SDK**. Client dùng chung ở `app/core/llm.py`
+(`get_async_client` / `get_sync_client`); base URL + model lấy từ `settings.groq_base_url` / `settings.groq_model`.
+
 ```python
-# ai_service.py — luôn dùng prompt caching cho system prompt
-response = client.messages.create(
-    model="claude-sonnet-4-6",
-    system=[
-        {"type": "text", "text": STATIC_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": json.dumps(user_profile), "cache_control": {"type": "ephemeral"}},
+# services/*.py
+from app.core.config import settings
+from app.core.llm import get_async_client
+
+response = await get_async_client().chat.completions.create(
+    model=settings.groq_model,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_message},
     ],
-    messages=[{"role": "user", "content": user_message}]
+    response_format={"type": "json_object"},
 )
 ```
