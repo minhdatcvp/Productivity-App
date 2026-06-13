@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, CheckCircle2, Clock, AlertCircle, GraduationCap, Brain } from "lucide-react";
 import { useTaskNotifications, type NotificationTask, type ActiveGoalNotification } from "@/hooks/useNotifications";
+import { useLearnReminders, type AssessmentReminder, type SRSReminder } from "@/hooks/useLearn";
 
 function formatDue(due_date: string | null): string {
   if (!due_date) return "";
@@ -47,13 +49,49 @@ function GoalRow({ goal }: { goal: ActiveGoalNotification }) {
   );
 }
 
+function AssessmentRow({ r, onClick }: { r: AssessmentReminder; onClick: () => void }) {
+  const label = r.never
+    ? "Chưa đánh giá"
+    : r.days_overdue === 0
+    ? "Đến hạn đánh giá"
+    : `Trễ ${r.days_overdue} ngày`;
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-2 py-1.5 text-left hover:opacity-80">
+      <span className="text-base shrink-0">{r.icon}</span>
+      <span className="flex-1 min-w-0 text-sm leading-snug truncate">{r.subject_name}</span>
+      <span className={`text-xs flex-shrink-0 ${r.never || r.days_overdue > 0 ? "text-red-500" : "text-orange-500"}`}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function SRSRow({ r, onClick }: { r: SRSReminder; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-2 py-1.5 text-left hover:opacity-80">
+      <span className="text-base shrink-0">{r.icon}</span>
+      <span className="flex-1 min-w-0 text-sm leading-snug truncate">{r.subject_name}</span>
+      <span className="text-xs flex-shrink-0 text-primary">{r.due_count} thẻ</span>
+    </button>
+  );
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const { data } = useTaskNotifications();
+  const { data: learn } = useLearnReminders();
 
-  const total = data?.total ?? 0;
-  const hasUrgent = (data?.overdue.length ?? 0) > 0;
+  const learnTotal = learn?.total ?? 0;
+  const total = (data?.total ?? 0) + learnTotal;
+  const hasUrgent =
+    (data?.overdue.length ?? 0) > 0 || (learn?.assessments.some((a) => a.never || a.days_overdue > 0) ?? false);
+
+  function go(subjectId: string) {
+    setOpen(false);
+    router.push(`/learn/${subjectId}`);
+  }
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -66,11 +104,12 @@ export function NotificationBell() {
   }, [open]);
 
   const hasNothing =
-    !data ||
-    (data.overdue.length === 0 &&
-      data.due_today.length === 0 &&
-      data.due_soon.length === 0 &&
-      data.active_goals.length === 0);
+    (!data ||
+      (data.overdue.length === 0 &&
+        data.due_today.length === 0 &&
+        data.due_soon.length === 0 &&
+        data.active_goals.length === 0)) &&
+    learnTotal === 0;
 
   return (
     <div ref={ref} className="relative">
@@ -146,6 +185,30 @@ export function NotificationBell() {
                 <p className="text-xs font-medium text-muted-foreground mb-1">Mục tiêu đang chạy</p>
                 {data.active_goals.map((g) => (
                   <GoalRow key={g.goal_id} goal={g} />
+                ))}
+              </div>
+            )}
+
+            {learn && learn.assessments.length > 0 && (
+              <div className="px-3 py-2 border-t">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <GraduationCap className="h-3.5 w-3.5 text-red-500" />
+                  <p className="text-xs font-medium text-red-500">Cần đánh giá năng lực ({learn.assessments.length})</p>
+                </div>
+                {learn.assessments.map((r) => (
+                  <AssessmentRow key={r.subject_id} r={r} onClick={() => go(r.subject_id)} />
+                ))}
+              </div>
+            )}
+
+            {learn && learn.srs.length > 0 && (
+              <div className="px-3 py-2 border-t">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Brain className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-xs font-medium text-primary">Flashcard cần ôn</p>
+                </div>
+                {learn.srs.map((r) => (
+                  <SRSRow key={r.subject_id} r={r} onClick={() => go(r.subject_id)} />
                 ))}
               </div>
             )}

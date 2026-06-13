@@ -1,74 +1,103 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useModuleItems, useCreateItem, useDeleteItem, type FlashCard } from "@/hooks/useLearn";
+import {
+  useModuleItems,
+  useUpdateItem,
+  useDeleteItem,
+  type FlashCard,
+  type FlashCardCategory,
+} from "@/hooks/useLearn";
 
 interface Props {
   subjectId: string;
   moduleId: string;
 }
 
+const SECTIONS: { key: FlashCardCategory; label: string; hint: string }[] = [
+  { key: "REVIEW", label: "Cần học thêm", hint: "Được đưa vào lượt ôn" },
+  { key: "MEMORIZED", label: "Đã nhớ", hint: "Không cần ôn lại" },
+];
+
 export function FlashcardModule({ subjectId, moduleId }: Props) {
   const { data: items = [], isLoading } = useModuleItems(subjectId, moduleId);
-  const createItem = useCreateItem(subjectId, moduleId);
+  const updateItem = useUpdateItem(subjectId, moduleId);
   const deleteItem = useDeleteItem(subjectId, moduleId);
-  const [open, setOpen] = useState(false);
-  const [front, setFront] = useState("");
-  const [back, setBack] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!front.trim() || !back.trim()) return;
+  async function handleMove(item: FlashCard) {
+    const next: FlashCardCategory = item.category === "REVIEW" ? "MEMORIZED" : "REVIEW";
     try {
-      await createItem.mutateAsync({ front: front.trim(), back: back.trim() });
-      toast.success("Đã thêm flashcard");
-      setOpen(false);
-      setFront(""); setBack("");
+      await updateItem.mutateAsync({ itemId: item.id, category: next });
+      toast.success(next === "MEMORIZED" ? "Đã chuyển sang Đã nhớ" : "Đã chuyển sang Cần học thêm");
     } catch {
-      toast.error("Thêm flashcard thất bại");
+      toast.error("Chuyển danh mục thất bại");
     }
   }
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Đang tải...</p>;
 
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />Thêm thẻ
-        </Button>
-      </div>
+  const cards = items as FlashCard[];
 
-      {items.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">Chưa có flashcard nào.</p>
+  function Card({ item }: { item: FlashCard }) {
+    return (
+      <div className="border rounded-lg p-3 relative">
+        <div className="absolute top-2 right-2 flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-primary"
+            title={item.category === "REVIEW" ? "Chuyển sang Đã nhớ" : "Chuyển sang Cần học thêm"}
+            disabled={updateItem.isPending}
+            onClick={() => handleMove(item)}
+          >
+            <ArrowRightLeft className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={() => setConfirmId(item.id)}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+        <p className="font-medium text-sm pr-14 whitespace-pre-wrap">{item.front}</p>
+        <p className="text-sm text-muted-foreground mt-1 border-t pt-1 whitespace-pre-wrap">{item.back}</p>
+        {item.category === "REVIEW" && (
+          <p className="text-xs text-muted-foreground mt-1">⏱ next: {new Date(item.next_review).toLocaleDateString("vi-VN")}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {cards.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          Chưa có flashcard nào. Chọn "Cần học thêm" / "Đã nhớ" ở tab Từ vựng để thêm.
+        </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {(items as FlashCard[]).map((item) => (
-          <div key={item.id} className="border rounded-lg p-3 relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
-              onClick={() => setConfirmId(item.id)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-            <p className="font-medium text-sm pr-8">{item.front}</p>
-            <p className="text-sm text-muted-foreground mt-1 border-t pt-1">{item.back}</p>
-            <p className="text-xs text-muted-foreground mt-1">⏱ next: {new Date(item.next_review).toLocaleDateString("vi-VN")}</p>
+      {SECTIONS.map(({ key, label, hint }) => {
+        const sectionCards = cards.filter((c) => c.category === key);
+        if (sectionCards.length === 0) return null;
+        return (
+          <div key={key} className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {label} · {sectionCards.length} thẻ
+              <span className="ml-2 normal-case font-normal opacity-70">{hint}</span>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {sectionCards.map((item) => <Card key={item.id} item={item} />)}
+            </div>
           </div>
-        ))}
-      </div>
+        );
+      })}
 
       <ConfirmDialog
         open={!!confirmId}
@@ -76,26 +105,6 @@ export function FlashcardModule({ subjectId, moduleId }: Props) {
         onConfirm={() => { if (confirmId) deleteItem.mutate(confirmId); setConfirmId(null); }}
         onCancel={() => setConfirmId(null)}
       />
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Thêm Flashcard</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div>
-              <Label>Mặt trước *</Label>
-              <Textarea value={front} onChange={(e) => setFront(e.target.value)} placeholder="Câu hỏi hoặc từ..." className="mt-1" rows={2} />
-            </div>
-            <div>
-              <Label>Mặt sau *</Label>
-              <Textarea value={back} onChange={(e) => setBack(e.target.value)} placeholder="Câu trả lời hoặc nghĩa..." className="mt-1" rows={2} />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Hủy</Button>
-              <Button type="submit" disabled={!front.trim() || !back.trim() || createItem.isPending}>Thêm</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

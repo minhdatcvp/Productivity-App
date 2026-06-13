@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CatalogManager } from "@/components/learn/CatalogManager";
+import { AccountSettings } from "@/components/settings/AccountSettings";
 
 export default function SettingsPage() {
   return (
@@ -19,7 +20,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="account" className="mt-4">
-          <p className="text-sm text-muted-foreground">Phase 5 — đang phát triển...</p>
+          <AccountSettings />
         </TabsContent>
       </Tabs>
     </div>

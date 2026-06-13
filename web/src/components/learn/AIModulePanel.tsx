@@ -341,8 +341,10 @@ export function AIModulePanel({ subjectId, moduleId, blockType }: Props) {
   const [generateOpen, setGenerateOpen] = useState(false);
   const { data: config } = useAIConfig(subjectId, moduleId);
 
-  // QUIZ and CODE_SNIPPET have separate UIs
-  if (blockType === "QUIZ" || blockType === "CODE_SNIPPET") return null;
+  // This generic AI panel is offered only on the Vocabulary inbox.
+  // Flashcards come from triaging vocab; Notes are manual; QUIZ/EXERCISE have
+  // their own "Tạo … AI" buttons; CODE has its own UI.
+  if (blockType !== "VOCABULARY") return null;
 
   return (
     <>

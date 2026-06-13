@@ -9,13 +9,16 @@ import type { Subject } from "@/hooks/useLearn";
 interface Props {
   subject: Subject;
   onDelete: (id: string) => void;
+  /** SRS flashcards due for this subject (from reminders). */
+  dueCount?: number;
+  /** Subject is due for a proficiency re-assessment. */
+  assessmentDue?: boolean;
 }
 
-export function SubjectCard({ subject, onDelete }: Props) {
+export function SubjectCard({ subject, onDelete, dueCount = 0, assessmentDue = false }: Props) {
   const router = useRouter();
-  const srsModules = subject.modules.filter(
-    (m) => m.block.block_type === "FLASHCARD" || m.block.block_type === "VOCABULARY"
-  );
+  // Review now happens only on the Flashcard module (vocab is triaged into cards).
+  const hasFlashcards = subject.modules.some((m) => m.block.block_type === "FLASHCARD");
 
   return (
     <Card
@@ -58,8 +61,22 @@ export function SubjectCard({ subject, onDelete }: Props) {
             </span>
           ))}
         </div>
-        {srsModules.length > 0 && (
-          <p className="text-xs text-primary mt-2 font-medium">Có SRS review</p>
+        {(dueCount > 0 || assessmentDue || hasFlashcards) && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {dueCount > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                {dueCount} thẻ cần ôn
+              </span>
+            )}
+            {assessmentDue && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                Cần đánh giá
+              </span>
+            )}
+            {dueCount === 0 && !assessmentDue && hasFlashcards && (
+              <span className="text-xs text-muted-foreground">Đã ôn xong</span>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

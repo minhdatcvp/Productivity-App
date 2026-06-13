@@ -1,25 +1,27 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.learn_v2 import (
-    BlockType, CatalogBlock, CodeSnippet, FlashCard, LearningTemplate,
-    Note, Subject, SubjectModule, SubjectQuiz, TemplateBlock, VocabItem,
+    BlockType, CatalogBlock, CodeSnippet, FlashCard, FlashCardCategory,
+    LearningTemplate, Note, Subject, SubjectModule, SubjectQuiz, TemplateBlock,
+    VocabItem,
 )
 from app.models.user import User
 from app.schemas.learn_v2 import (
-    CodeSnippetCreate, CodeSnippetOut, CodeSnippetUpdate,
-    FlashCardCreate, FlashCardOut, FlashCardUpdate,
-    NoteCreate, NoteOut, NoteUpdate,
-    QuizSubmit, SRSReviewRequest,
+    AssessmentReminder, CodeSnippetCreate, CodeSnippetUpdate,
+    FlashCardCreate, FlashCardUpdate,
+    LearnRemindersResponse,
+    NoteCreate, NoteUpdate,
+    QuizSubmit, SRSReminder, SRSReviewRequest,
     SubjectCreate, SubjectOut,
-    VocabItemCreate, VocabItemOut, VocabItemUpdate,
+    VocabCategorizeRequest, VocabItemCreate, VocabItemUpdate,
 )
 from app.services.learn_service import get_module
 from app.services.srs_service import compute_next_review
@@ -27,6 +29,94 @@ from app.services.srs_service import compute_next_review
 router = APIRouter(prefix="/learn", tags=["learn"])
 
 _SUBJECT_OPTS = selectinload(Subject.modules).selectinload(SubjectModule.block)
+
+
+# ── Reminders (in-app schedule) ───────────────────────────────────────────────
+
+_CADENCE_DAYS = {"weekly": 7, "monthly": 30}
+
+
+@router.get("/reminders", response_model=LearnRemindersResponse)
+async def get_learn_reminders(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pull-based learning reminders: subjects due for a re-assessment (per the
+    cadence set on their EXERCISE module) and subjects with SRS cards due."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Subject)
+        .where(Subject.user_id == current_user.id)
+        .options(_SUBJECT_OPTS)
+        .order_by(Subject.created_at)
+    )
+    subjects = result.scalars().all()
+
+    # Map flashcard module id → subject, then count due REVIEW cards in one query.
+    fc_mod_to_subject: dict[str, Subject] = {}
+    for s in subjects:
+        for m in s.modules:
+            if m.block.block_type == BlockType.FLASHCARD:
+                fc_mod_to_subject[m.id] = s
+
+    due_by_subject: dict[str, int] = {}
+    if fc_mod_to_subject:
+        dr = await db.execute(
+            select(FlashCard.subject_mod_id, func.count(FlashCard.id))
+            .where(
+                FlashCard.subject_mod_id.in_(list(fc_mod_to_subject)),
+                FlashCard.category == FlashCardCategory.REVIEW,
+                FlashCard.next_review <= now,
+            )
+            .group_by(FlashCard.subject_mod_id)
+        )
+        for mod_id, cnt in dr.all():
+            sid = fc_mod_to_subject[mod_id].id
+            due_by_subject[sid] = due_by_subject.get(sid, 0) + cnt
+
+    assessments: list[AssessmentReminder] = []
+    srs: list[SRSReminder] = []
+
+    for s in subjects:
+        # Assessment cadence (on the EXERCISE module config)
+        ex_mod = next((m for m in s.modules if m.block.block_type == BlockType.EXERCISE), None)
+        if ex_mod:
+            cfg = ex_mod.config or {}
+            cadence = cfg.get("assess_cadence", "monthly")
+            if cadence != "off":
+                last_raw = cfg.get("level_assessed_at")
+                if not last_raw:
+                    assessments.append(AssessmentReminder(
+                        subject_id=s.id, subject_name=s.name, icon=s.icon,
+                        level=cfg.get("level"), last_assessed_at=None,
+                        days_overdue=0, never=True,
+                    ))
+                else:
+                    try:
+                        last_dt = datetime.fromisoformat(last_raw)
+                        if last_dt.tzinfo is None:
+                            last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        last_dt = None
+                    if last_dt is not None:
+                        next_due = last_dt + timedelta(days=_CADENCE_DAYS.get(cadence, 30))
+                        if now >= next_due:
+                            assessments.append(AssessmentReminder(
+                                subject_id=s.id, subject_name=s.name, icon=s.icon,
+                                level=cfg.get("level"), last_assessed_at=last_raw,
+                                days_overdue=(now - next_due).days, never=False,
+                            ))
+
+        # SRS due
+        cnt = due_by_subject.get(s.id, 0)
+        if cnt > 0:
+            srs.append(SRSReminder(
+                subject_id=s.id, subject_name=s.name, icon=s.icon, due_count=cnt,
+            ))
+
+    return LearnRemindersResponse(
+        assessments=assessments, srs=srs, total=len(assessments) + len(srs),
+    )
 
 
 # ── Subjects ──────────────────────────────────────────────────────────────────
@@ -164,7 +254,7 @@ async def create_item(
     item_id = str(uuid.uuid4())
     if bt == BlockType.FLASHCARD:
         parsed = FlashCardCreate(**body)
-        item = FlashCard(id=item_id, subject_mod_id=mod.id, front=parsed.front, back=parsed.back)
+        item = FlashCard(id=item_id, subject_mod_id=mod.id, front=parsed.front, back=parsed.back, category=parsed.category)
     elif bt == BlockType.VOCABULARY:
         parsed = VocabItemCreate(**body)
         item = VocabItem(id=item_id, subject_mod_id=mod.id, **parsed.model_dump())
@@ -263,16 +353,17 @@ async def get_due_items(
     bt = mod.block.block_type
 
     if bt == BlockType.FLASHCARD:
+        # Only "Cần học thêm" (REVIEW) cards are reviewed; "Đã nhớ" are excluded.
         r = await db.execute(
-            select(FlashCard).where(FlashCard.subject_mod_id == mod.id, FlashCard.next_review <= now)
+            select(FlashCard).where(
+                FlashCard.subject_mod_id == mod.id,
+                FlashCard.category == FlashCardCategory.REVIEW,
+                FlashCard.next_review <= now,
+            )
         )
         items = [{"type": "flashcard", "item": i} for i in r.scalars().all()]
-    elif bt == BlockType.VOCABULARY:
-        r = await db.execute(
-            select(VocabItem).where(VocabItem.subject_mod_id == mod.id, VocabItem.next_review <= now)
-        )
-        items = [{"type": "vocab", "item": i} for i in r.scalars().all()]
     else:
+        # Vocab is no longer SRS-reviewed — words are triaged into flashcards.
         items = []
 
     return {"due": items, "count": len(items)}
@@ -289,7 +380,7 @@ async def submit_review(
     mod = await get_module(db, subject_id, module_id, current_user.id)
     bt = mod.block.block_type
 
-    if bt not in (BlockType.FLASHCARD, BlockType.VOCABULARY):
+    if bt != BlockType.FLASHCARD:
         raise HTTPException(status_code=400, detail="This module does not support SRS review")
 
     quality = max(0, min(5, body.quality))
@@ -307,3 +398,89 @@ async def submit_review(
     await db.commit()
     await db.refresh(item)
     return item
+
+
+# ── Vocab → Flashcard categorization ──────────────────────────────────────────
+
+def _compose_flashcard_back(vocab: VocabItem) -> str:
+    parts = [vocab.meaning]
+    if vocab.pronunciation:
+        parts.append(f"[{vocab.pronunciation}]")
+    if vocab.example:
+        parts.append(f"VD: {vocab.example}")
+    return "\n".join(p for p in parts if p)
+
+
+@router.post("/subjects/{subject_id}/modules/{module_id}/vocab/{item_id}/categorize")
+async def categorize_vocab(
+    subject_id: str,
+    module_id: str,
+    item_id: str,
+    body: VocabCategorizeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Move a vocab word into the subject's Flashcard module under a category
+    ("Cần học thêm" / "Đã nhớ"), then remove it from the vocabulary inbox.
+    Dedupes by front: an existing card with the same word is re-categorized
+    instead of duplicated."""
+    mod = await get_module(db, subject_id, module_id, current_user.id)
+    if mod.block.block_type != BlockType.VOCABULARY:
+        raise HTTPException(status_code=400, detail="Module không phải VOCABULARY")
+
+    vr = await db.execute(
+        select(VocabItem).where(VocabItem.id == item_id, VocabItem.subject_mod_id == mod.id)
+    )
+    vocab = vr.scalar_one_or_none()
+    if not vocab:
+        raise HTTPException(status_code=404, detail="Không tìm thấy từ vựng")
+
+    # Find the subject's FLASHCARD module (target store for both categories).
+    fr = await db.execute(
+        select(SubjectModule)
+        .join(CatalogBlock, SubjectModule.block_id == CatalogBlock.id)
+        .where(
+            SubjectModule.subject_id == subject_id,
+            CatalogBlock.block_type == BlockType.FLASHCARD,
+        )
+        .order_by(SubjectModule.order)
+    )
+    fc_mod = fr.scalars().first()
+    if not fc_mod:
+        raise HTTPException(status_code=400, detail="Môn học chưa có module Flashcard để lưu từ")
+
+    front = vocab.word.strip()
+    back = _compose_flashcard_back(vocab)
+
+    # Dedup by front (case-insensitive) within the flashcard module.
+    er = await db.execute(
+        select(FlashCard).where(
+            FlashCard.subject_mod_id == fc_mod.id,
+            func.lower(FlashCard.front) == front.lower(),
+        )
+    )
+    existing = er.scalars().first()
+    deduped = existing is not None
+    if existing:
+        existing.category = body.category
+        existing.back = back
+        flashcard = existing
+    else:
+        flashcard = FlashCard(
+            id=str(uuid.uuid4()),
+            subject_mod_id=fc_mod.id,
+            front=front,
+            back=back,
+            category=body.category,
+        )
+        db.add(flashcard)
+
+    await db.delete(vocab)
+    await db.commit()
+    await db.refresh(flashcard)
+    return {
+        "flashcard_id": flashcard.id,
+        "flashcard_module_id": fc_mod.id,
+        "category": body.category.value,
+        "deduped": deduped,
+    }

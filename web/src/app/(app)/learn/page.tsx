@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { SubjectCard } from "@/components/learn/SubjectCard";
 import { CreateSubjectDialog } from "@/components/learn/CreateSubjectDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useSubjects, useCreateSubject, useDeleteSubject, useTemplates } from "@/hooks/useLearn";
+import { useSubjects, useCreateSubject, useDeleteSubject, useTemplates, useLearnReminders } from "@/hooks/useLearn";
 
 export default function LearnPage() {
   const { data: subjects = [], isLoading } = useSubjects();
   const { data: templates = [] } = useTemplates();
+  const { data: reminders } = useLearnReminders();
+
+  const dueBySubject = new Map((reminders?.srs ?? []).map((r) => [r.subject_id, r.due_count]));
+  const assessmentDue = new Set((reminders?.assessments ?? []).map((r) => r.subject_id));
   const createSubject = useCreateSubject();
   const deleteSubject = useDeleteSubject();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -77,7 +81,13 @@ export default function LearnPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {subjects.map((s) => (
-          <SubjectCard key={s.id} subject={s} onDelete={handleDelete} />
+          <SubjectCard
+            key={s.id}
+            subject={s}
+            onDelete={handleDelete}
+            dueCount={dueBySubject.get(s.id) ?? 0}
+            assessmentDue={assessmentDue.has(s.id)}
+          />
         ))}
       </div>
 

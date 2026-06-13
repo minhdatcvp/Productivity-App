@@ -10,6 +10,11 @@ export interface AIConfig {
   topics: string[];
   difficulty: string;
   last_generated_at: string | null;
+  // Assessment ("Bài tập") fields — meaningful on EXERCISE modules.
+  level?: string | null;
+  level_label?: string | null;
+  level_assessed_at?: string | null;
+  assess_cadence?: "weekly" | "monthly" | "off";
 }
 
 export interface QuizQuestion {
@@ -30,6 +35,10 @@ export interface SubjectQuiz {
     score: number;
     correct: number;
     total: number;
+    /** Assessment only: assigned proficiency level, e.g. "B1". */
+    level?: string;
+    /** Assessment only: human label, e.g. "Trung cấp (B1)". */
+    level_label?: string;
     summary: string;
     strong_areas: string[];
     weak_areas: string[];

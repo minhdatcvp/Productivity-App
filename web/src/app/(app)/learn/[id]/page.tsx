@@ -21,6 +21,7 @@ function ModuleContent({ subjectId, moduleId, blockType, flashcardModuleId }: { 
   if (blockType === "NOTES") return <NotesModule subjectId={subjectId} moduleId={moduleId} />;
   if (blockType === "CODE_SNIPPET") return <CodeModule subjectId={subjectId} moduleId={moduleId} />;
   if (blockType === "QUIZ") return <QuizModule subjectId={subjectId} moduleId={moduleId} />;
+  if (blockType === "EXERCISE") return <QuizModule subjectId={subjectId} moduleId={moduleId} noun="bài tập" assessment />;
   return <p className="text-sm text-muted-foreground py-8 text-center">Module này chưa có UI.</p>;
 }
 
@@ -58,8 +59,10 @@ export default function SubjectDetailPage() {
     );
   }
 
+  // Review happens only on the Flashcard module — vocab words are triaged into
+  // flashcards, and the SRS lesson ("Ôn flashcard") covers the "Cần học thêm" cards.
   const srsModules = subject.modules.filter(
-    (m) => m.block.block_type === "FLASHCARD" || m.block.block_type === "VOCABULARY"
+    (m) => m.block.block_type === "FLASHCARD"
   );
 
   if (srsModule) {
@@ -108,7 +111,7 @@ export default function SubjectDetailPage() {
             {subject.modules.map((m) => (
               <TabsTrigger key={m.id} value={m.id} className="text-xs flex-none">
                 {m.block.name}
-                {(m.block.block_type === "FLASHCARD" || m.block.block_type === "VOCABULARY") && (
+                {m.block.block_type === "FLASHCARD" && (
                   <SRSBadge subjectId={subject.id} moduleId={m.id} />
                 )}
               </TabsTrigger>

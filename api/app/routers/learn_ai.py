@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.learn_v2 import (
     BlockType,
+    CatalogBlock,
     FlashCard,
     Note,
     Subject,
@@ -34,6 +35,25 @@ from app.services.learn_service import get_module
 router = APIRouter(prefix="/learn/subjects", tags=["learn-ai"])
 
 
+async def _get_subject_level(db: AsyncSession, subject_id: str) -> str | None:
+    """The learner's assessed proficiency level for a subject, stored on its
+    EXERCISE (Bài tập) module config by the assessment grader. Used to
+    calibrate AI-generated content difficulty."""
+    r = await db.execute(
+        select(SubjectModule)
+        .join(CatalogBlock, SubjectModule.block_id == CatalogBlock.id)
+        .where(
+            SubjectModule.subject_id == subject_id,
+            CatalogBlock.block_type == BlockType.EXERCISE,
+        )
+        .order_by(SubjectModule.order)
+    )
+    ex_mod = r.scalars().first()
+    if not ex_mod:
+        return None
+    return (ex_mod.config or {}).get("level") or None
+
+
 # ── AI Config ─────────────────────────────────────────────────────────────────
 
 @router.get("/{subject_id}/modules/{module_id}/ai/config", response_model=AIConfigOut)
@@ -50,8 +70,11 @@ async def get_ai_config(
         daily_count=config.get("daily_count", 10),
         topics=config.get("topics", []),
         difficulty=config.get("difficulty", "intermediate"),
-        language=config.get("language", ""),
         last_generated_at=config.get("last_generated_at"),
+        level=config.get("level"),
+        level_label=config.get("level_label"),
+        level_assessed_at=config.get("level_assessed_at"),
+        assess_cadence=config.get("assess_cadence", "monthly"),
     )
 
 
@@ -76,8 +99,11 @@ async def update_ai_config(
         daily_count=config.get("daily_count", 10),
         topics=config.get("topics", []),
         difficulty=config.get("difficulty", "intermediate"),
-        language=config.get("language", ""),
         last_generated_at=config.get("last_generated_at"),
+        level=config.get("level"),
+        level_label=config.get("level_label"),
+        level_assessed_at=config.get("level_assessed_at"),
+        assess_cadence=config.get("assess_cadence", "monthly"),
     )
 
 
@@ -109,18 +135,28 @@ async def ai_generate(
 
     topics: list[str] = config.get("topics", [])
     count: int = config.get("daily_count", 10)
+    level = await _get_subject_level(db, subject_id)
 
     if block_type == BlockType.VOCABULARY:
-        # Gather existing words
+        # Gather existing words — from the vocab inbox AND from flashcards the
+        # user already triaged (categorized words leave vocab and become cards),
+        # so the AI never regenerates a word that's already known.
         vocab_result = await db.execute(
             select(VocabItem.word).where(VocabItem.subject_mod_id == module_id)
         )
         existing_words = [r for r in vocab_result.scalars().all()]
+        fc_fronts_result = await db.execute(
+            select(FlashCard.front)
+            .join(SubjectModule, FlashCard.subject_mod_id == SubjectModule.id)
+            .where(SubjectModule.subject_id == subject_id)
+        )
+        existing_words.extend(fc_fronts_result.scalars().all())
         items = await learning_ai_service.generate_vocab_items(
             count=count,
             topics=topics,
             subject_name=subject_name,
             existing_words=existing_words,
+            level=level,
         )
         return AIGenerateResponse(items=items, block_type=block_type.value)
 
@@ -134,13 +170,14 @@ async def ai_generate(
             topics=topics,
             subject_name=subject_name,
             existing_fronts=existing_fronts,
+            level=level,
         )
         return AIGenerateResponse(items=items, block_type=block_type.value)
 
     elif block_type == BlockType.NOTES:
         topic = topics[0] if topics else subject_name
         note = await learning_ai_service.generate_note(
-            topic=topic, subject_name=subject_name
+            topic=topic, subject_name=subject_name, level=level
         )
         return AIGenerateResponse(items=[note], block_type=block_type.value)
 
@@ -255,8 +292,7 @@ async def ai_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Verify module ownership
-    await get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
 
     # Subject name
     subj_result = await db.execute(
@@ -264,6 +300,23 @@ async def ai_quiz(
     )
     subject = subj_result.scalar_one_or_none()
     subject_name = subject.name if subject else subject_id
+
+    # EXERCISE module = proficiency assessment ("Bài tập"): a broad level-test,
+    # not tied to the subject's existing content.
+    if mod.block.block_type == BlockType.EXERCISE:
+        questions = await learning_ai_service.generate_assessment_questions(
+            subject_name=subject_name,
+            count=max(body.count, 12),
+        )
+        quiz = SubjectQuiz(
+            subject_mod_id=module_id,
+            questions={"items": questions},
+            status=QuizStatus.PENDING,
+        )
+        db.add(quiz)
+        await db.commit()
+        await db.refresh(quiz)
+        return quiz
 
     # Gather ALL modules of this subject
     mods_result = await db.execute(
@@ -362,7 +415,7 @@ async def submit_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await get_module(db, subject_id, module_id, current_user.id)
+    mod = await get_module(db, subject_id, module_id, current_user.id)
 
     quiz_result = await db.execute(
         select(SubjectQuiz).where(
@@ -387,11 +440,28 @@ async def submit_quiz(
     q_data = quiz.questions or {}
     questions = q_data.get("items", []) if isinstance(q_data, dict) else q_data if isinstance(q_data, list) else []
 
-    feedback = await learning_ai_service.evaluate_quiz(
-        subject_name=subject_name,
-        questions=questions,
-        user_answers=body.answers,
-    )
+    is_assessment = mod.block.block_type == BlockType.EXERCISE
+    if is_assessment:
+        feedback = await learning_ai_service.evaluate_assessment(
+            subject_name=subject_name,
+            questions=questions,
+            user_answers=body.answers,
+        )
+        # Persist the assessed level on the EXERCISE module so AI content
+        # generation across the subject calibrates to it.
+        new_config = dict(mod.config or {})
+        if feedback.get("level"):
+            new_config["level"] = feedback["level"]
+            new_config["level_label"] = feedback.get("level_label", "")
+            new_config["level_assessed_at"] = datetime.now(timezone.utc).isoformat()
+            mod.config = new_config
+            db.add(mod)
+    else:
+        feedback = await learning_ai_service.evaluate_quiz(
+            subject_name=subject_name,
+            questions=questions,
+            user_answers=body.answers,
+        )
 
     # JSONB mutation — assign new dict, not mutate in place
     answers_dict = dict(body.answers)

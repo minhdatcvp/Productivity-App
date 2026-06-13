@@ -9,13 +9,25 @@ import {
   useAIGenerateQuiz,
   useQuizzes,
   useSubmitQuiz,
+  useAIConfig,
+  useUpdateAIConfig,
   type SubjectQuiz,
   type QuizQuestion,
 } from "@/hooks/useLearnAI";
 
+const CADENCE_OPTIONS: { value: "weekly" | "monthly" | "off"; label: string; days: number }[] = [
+  { value: "weekly", label: "Hàng tuần", days: 7 },
+  { value: "monthly", label: "Hàng tháng", days: 30 },
+  { value: "off", label: "Tắt", days: 0 },
+];
+
 interface Props {
   subjectId: string;
   moduleId: string;
+  /** Noun used in labels, e.g. "bài kiểm tra" (default) or "bài tập". */
+  noun?: string;
+  /** Proficiency-assessment mode: shows assigned level, cadence hint. */
+  assessment?: boolean;
 }
 
 type UIState = "list" | "taking" | "results";
@@ -33,34 +45,104 @@ function scoreBadgeClass(score: number) {
 function QuizList({
   subjectId,
   moduleId,
+  noun,
+  assessment,
   onStartNew,
   onViewResult,
 }: {
   subjectId: string;
   moduleId: string;
+  noun: string;
+  assessment: boolean;
   onStartNew: (quiz: SubjectQuiz) => void;
   onViewResult: (quiz: SubjectQuiz) => void;
 }) {
   const { data: quizzes = [], isLoading } = useQuizzes(subjectId, moduleId);
   const generateQuiz = useAIGenerateQuiz(subjectId, moduleId);
+  const { data: config } = useAIConfig(subjectId, moduleId);
+  const updateConfig = useUpdateAIConfig(subjectId, moduleId);
 
   async function handleGenerate() {
     try {
       const quiz = await generateQuiz.mutateAsync();
       onStartNew(quiz);
     } catch {
-      toast.error("Tạo bài kiểm tra thất bại");
+      toast.error(`Tạo ${noun} thất bại`);
     }
   }
 
   const completed = quizzes.filter((q) => q.status === "COMPLETED");
+  // Latest assessment that produced a level → the learner's current level.
+  const latestWithLevel = completed.find((q) => q.ai_feedback?.level);
+  const currentLevel = latestWithLevel?.ai_feedback;
+
+  const cadence = config?.assess_cadence ?? "monthly";
+  const nextDue = (() => {
+    if (!assessment || cadence === "off" || !config?.level_assessed_at) return null;
+    const days = CADENCE_OPTIONS.find((c) => c.value === cadence)?.days ?? 30;
+    const d = new Date(config.level_assessed_at);
+    d.setDate(d.getDate() + days);
+    return d;
+  })();
+  const overdue = nextDue ? nextDue.getTime() <= Date.now() : false;
 
   return (
     <div className="space-y-4">
+      {assessment && (
+        <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Trình độ hiện tại</p>
+              {currentLevel?.level ? (
+                <>
+                  <p className="text-lg font-bold truncate">{currentLevel.level_label || currentLevel.level}</p>
+                  {latestWithLevel && (
+                    <p className="text-xs text-muted-foreground">
+                      Đánh giá lần cuối: {new Date(latestWithLevel.created_at).toLocaleDateString("vi-VN")}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Chưa đánh giá — làm bài test để xác định trình độ.</p>
+              )}
+            </div>
+            <span className="text-3xl shrink-0">🎯</span>
+          </div>
+
+          {/* Cadence selector */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">Nhắc đánh giá lại:</span>
+            {CADENCE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={updateConfig.isPending}
+                onClick={() => updateConfig.mutate({ assess_cadence: opt.value })}
+                className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  cadence === opt.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input hover:bg-muted"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {nextDue && (
+            <p className={`text-xs ${overdue ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+              {overdue
+                ? "⚠ Đã đến hạn đánh giá lại."
+                : `Đánh giá lại dự kiến: ${nextDue.toLocaleDateString("vi-VN")}`}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button size="sm" onClick={handleGenerate} disabled={generateQuiz.isPending}>
           <Sparkles className="h-4 w-4 mr-1.5" />
-          {generateQuiz.isPending ? "Đang tạo..." : "Tạo bài kiểm tra AI"}
+          {generateQuiz.isPending ? "Đang tạo..." : `Tạo ${noun} AI`}
         </Button>
       </div>
 
@@ -70,7 +152,9 @@ function QuizList({
 
       {!isLoading && completed.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-10">
-          Hãy thêm từ vựng hoặc flashcard trước, rồi tạo bài kiểm tra.
+          {assessment
+            ? `Chưa có ${noun} nào. Bấm "Tạo ${noun} AI" để đánh giá năng lực.`
+            : `Hãy thêm từ vựng hoặc flashcard trước, rồi tạo ${noun}.`}
         </p>
       )}
 
@@ -190,10 +274,12 @@ function QuizTaking({
 function QuizResults({
   quiz,
   userAnswers,
+  assessment,
   onBack,
 }: {
   quiz: SubjectQuiz;
   userAnswers?: Record<string, string>;
+  assessment: boolean;
   onBack: () => void;
 }) {
   const fb = quiz.ai_feedback;
@@ -202,6 +288,17 @@ function QuizResults({
 
   return (
     <div className="space-y-5">
+      {/* Assessed level (assessment mode) */}
+      {assessment && fb?.level && (
+        <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 text-center">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Trình độ đánh giá</p>
+          <p className="text-3xl font-bold text-primary mt-1">{fb.level_label || fb.level}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Nội dung AI tạo cho môn này sẽ được điều chỉnh theo mức này.
+          </p>
+        </div>
+      )}
+
       {/* Score */}
       <div className="flex flex-col items-center gap-2 py-4">
         <div
@@ -306,7 +403,7 @@ function QuizResults({
 
 // ── QuizModule (main) ─────────────────────────────────────────────────────────
 
-export function QuizModule({ subjectId, moduleId }: Props) {
+export function QuizModule({ subjectId, moduleId, noun = "bài kiểm tra", assessment = false }: Props) {
   const [uiState, setUIState] = useState<UIState>("list");
   const [activeQuiz, setActiveQuiz] = useState<SubjectQuiz | null>(null);
   const [pendingAnswers, setPendingAnswers] = useState<Record<string, string>>({});
@@ -332,6 +429,8 @@ export function QuizModule({ subjectId, moduleId }: Props) {
       <QuizList
         subjectId={subjectId}
         moduleId={moduleId}
+        noun={noun}
+        assessment={assessment}
         onStartNew={(quiz) => {
           setActiveQuiz(quiz);
           setUIState("taking");
@@ -359,6 +458,7 @@ export function QuizModule({ subjectId, moduleId }: Props) {
       <QuizResults
         quiz={activeQuiz}
         userAnswers={pendingAnswers}
+        assessment={assessment}
         onBack={() => setUIState("list")}
       />
     );

@@ -69,3 +69,24 @@ export function useLogout() {
     router.push("/login");
   };
 }
+
+export function useUpdateProfile() {
+  const setUser = useAuthStore((s) => s.setUser);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { name: string }) =>
+      api.patch("/auth/me", payload).then((r) => r.data),
+    onSuccess: (user) => {
+      setUser(user);
+      qc.setQueryData(["me"], user);
+    },
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (payload: { current_password: string; new_password: string }) =>
+      api.post("/auth/change-password", payload).then((r) => r.data),
+  });
+}

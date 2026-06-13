@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.models.learn_v2 import BlockType, QuizStatus
+from app.models.learn_v2 import BlockType, FlashCardCategory, QuizStatus
 
 
 # ── Catalog ───────────────────────────────────────────────────────────────────
@@ -119,6 +119,7 @@ class FlashCardOut(BaseModel):
     subject_mod_id: str
     front: str
     back: str
+    category: FlashCardCategory
     ease_factor: float
     interval: int
     repetitions: int
@@ -131,11 +132,13 @@ class FlashCardOut(BaseModel):
 class FlashCardCreate(BaseModel):
     front: str
     back: str
+    category: FlashCardCategory = FlashCardCategory.REVIEW
 
 
 class FlashCardUpdate(BaseModel):
     front: str | None = None
     back: str | None = None
+    category: FlashCardCategory | None = None
 
 
 # ── Vocab ─────────────────────────────────────────────────────────────────────
@@ -171,6 +174,10 @@ class VocabItemUpdate(BaseModel):
     pronunciation: str | None = None
     example: str | None = None
     tags: list[str] | None = None
+
+
+class VocabCategorizeRequest(BaseModel):
+    category: FlashCardCategory
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
@@ -255,6 +262,11 @@ class AIConfigOut(BaseModel):
     topics: list[str] = []
     difficulty: str = "intermediate"
     last_generated_at: str | None = None
+    # Assessment ("Bài tập") fields — only meaningful on EXERCISE modules.
+    level: str | None = None
+    level_label: str | None = None
+    level_assessed_at: str | None = None
+    assess_cadence: str = "monthly"  # "weekly" | "monthly" | "off"
 
 
 class AIConfigUpdate(BaseModel):
@@ -262,6 +274,7 @@ class AIConfigUpdate(BaseModel):
     daily_count: int | None = None
     topics: list[str] | None = None
     difficulty: str | None = None
+    assess_cadence: str | None = None
 
 
 class AIGeneratedItem(BaseModel):
@@ -314,3 +327,28 @@ class SRSReviewRequest(BaseModel):
 class SRSItemOut(BaseModel):
     type: str  # "flashcard" | "vocab"
     item: FlashCardOut | VocabItemOut
+
+
+# ── Reminders (in-app schedule) ───────────────────────────────────────────────
+
+class AssessmentReminder(BaseModel):
+    subject_id: str
+    subject_name: str
+    icon: str
+    level: str | None = None
+    last_assessed_at: str | None = None
+    days_overdue: int = 0  # 0 when never assessed (see `never`)
+    never: bool = False
+
+
+class SRSReminder(BaseModel):
+    subject_id: str
+    subject_name: str
+    icon: str
+    due_count: int
+
+
+class LearnRemindersResponse(BaseModel):
+    assessments: list[AssessmentReminder] = []
+    srs: list[SRSReminder] = []
+    total: int = 0

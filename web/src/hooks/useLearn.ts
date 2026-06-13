@@ -55,11 +55,14 @@ export interface Subject {
   modules: SubjectModule[];
 }
 
+export type FlashCardCategory = "REVIEW" | "MEMORIZED";
+
 export interface FlashCard {
   id: string;
   subject_mod_id: string;
   front: string;
   back: string;
+  category: FlashCardCategory;
   ease_factor: number;
   interval: number;
   repetitions: number;
@@ -107,6 +110,41 @@ export interface BlockSuggestion {
   description: string;
   icon: string;
   is_duplicate: boolean;
+}
+
+export interface AssessmentReminder {
+  subject_id: string;
+  subject_name: string;
+  icon: string;
+  level: string | null;
+  last_assessed_at: string | null;
+  days_overdue: number;
+  never: boolean;
+}
+
+export interface SRSReminder {
+  subject_id: string;
+  subject_name: string;
+  icon: string;
+  due_count: number;
+}
+
+export interface LearnReminders {
+  assessments: AssessmentReminder[];
+  srs: SRSReminder[];
+  total: number;
+}
+
+// ── Reminders ─────────────────────────────────────────────────────────────────
+
+export function useLearnReminders(enabled = true) {
+  return useQuery<LearnReminders>({
+    queryKey: ["learn-reminders"],
+    queryFn: () => api.get("/learn/reminders").then((r: AxiosResponse) => r.data),
+    enabled,
+    refetchInterval: 600_000,
+    staleTime: 600_000,
+  });
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -238,6 +276,20 @@ export function useCreateItem(subjectId: string, moduleId: string) {
   });
 }
 
+export function useUpdateItem(subjectId: string, moduleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, ...data }: { itemId: string } & Record<string, unknown>) =>
+      api
+        .patch(`/learn/subjects/${subjectId}/modules/${moduleId}/items/${itemId}`, data)
+        .then((r: AxiosResponse) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["module-items", subjectId, moduleId] });
+      qc.invalidateQueries({ queryKey: ["due", subjectId, moduleId] });
+    },
+  });
+}
+
 export function useDeleteItem(subjectId: string, moduleId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -270,6 +322,30 @@ export function useSubmitReview(subjectId: string, moduleId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["due", subjectId, moduleId] });
       qc.invalidateQueries({ queryKey: ["module-items", subjectId, moduleId] });
+    },
+  });
+}
+
+interface CategorizeResult {
+  flashcard_id: string;
+  flashcard_module_id: string;
+  category: FlashCardCategory;
+  deduped: boolean;
+}
+
+// Move a vocab word into the subject's Flashcard module under a category,
+// removing it from the vocab inbox. `moduleId` is the VOCABULARY module.
+export function useCategorizeVocab(subjectId: string, moduleId: string) {
+  const qc = useQueryClient();
+  return useMutation<CategorizeResult, unknown, { item_id: string; category: FlashCardCategory }>({
+    mutationFn: ({ item_id, category }) =>
+      api
+        .post(`/learn/subjects/${subjectId}/modules/${moduleId}/vocab/${item_id}/categorize`, { category })
+        .then((r: AxiosResponse) => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["module-items", subjectId, moduleId] });
+      qc.invalidateQueries({ queryKey: ["module-items", subjectId, data.flashcard_module_id] });
+      qc.invalidateQueries({ queryKey: ["due", subjectId, data.flashcard_module_id] });
     },
   });
 }

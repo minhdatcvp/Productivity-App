@@ -32,10 +32,30 @@
 - [x] AI Pydantic schemas (`api/app/schemas/ai.py`)
 - [x] FE AI components: AISummaryCard, AIGoalBreakdownDialog, AIDailyBreakdownDialog, NotificationBell, RolloverBanner
 
-## Chưa làm — Phase 4+
-- [ ] **Phase 4**: Học tập module — Catalog (AI-powered) + Templates + Subjects + SRS + Quiz
-  - Xem plan chi tiết: `.claude/plans/phase4-hoc-tap.md`
-  - Kiến trúc: Catalog blocks → Templates → Subjects (data-driven, không hardcode)
-  - Menu mới: `/templates` (quản lý templates)
-  - Settings: Tab Catalog — AI suggest blocks từ user intent, check trùng
-- [ ] **Phase 5**: Deploy Vercel + Railway + responsive polish
+## Đã hoàn thành — Phase 4 (Học tập, data-driven)
+- [x] Catalog blocks (AI suggest) + Templates + Subjects + Modules
+- [x] Migration `004_learn_v2.py` (+ `006` drop learn v1)
+- [x] Routers `learn_v2.py` (subjects/modules/items/SRS) + `learn_ai.py` (AI gen/quiz)
+- [x] Services: `catalog_service.py`, `learning_ai_service.py`, `srs_service.py`, `learn_service.py`
+- [x] FE: `/learn` grid, `/learn/[id]` tabs, các module component, `SRSSession`, `useLearn.ts`/`useLearnAI.ts`
+
+## Đã hoàn thành — Phase 5 (Deploy)
+- [x] Deploy production: Render (API, Docker) + Neon (Postgres) + Upstash (Redis) + Vercel (FE)
+- [x] `render.yaml` web service + healthcheck; CORS từ Vercel URL
+- (LLM hiện dùng Groq qua `app/core/llm.py`, cấu hình `groq_model`)
+
+## Đã hoàn thành — Học tập v2 refinement (2026-06)
+- [x] Từ vựng thành "hộp phân loại": Cần học thêm / Đã nhớ → tạo Flashcard có `category` (REVIEW/MEMORIZED), xoá khỏi tab vocab; dedup theo `front`. Endpoint `.../vocab/{id}/categorize`. Migration `007_flashcard_category.py`.
+- [x] Flashcard: 2 danh mục; chỉ REVIEW + due được ôn (1 nút "Ôn Flashcard"). Bỏ add-card thủ công + AI panel ở tab Flashcard/Notes.
+- [x] Bài tập (EXERCISE) = bài test đánh giá năng lực: AI gen đề trải đều độ khó → chấm + gán `level` lưu vào config module; AI gen nội dung calibrate theo level.
+- [x] Schedule/reminders (pull): `GET /learn/reminders` (assessment-due theo cadence tuần/tháng + SRS due) → NotificationBell + badge SubjectCard; cadence chọn trong tab Bài tập.
+
+## Đã hoàn thành — Phase 5 (Tài khoản người dùng)
+- [x] BE: `PATCH /auth/me` (đổi tên), `POST /auth/change-password`; `UserResponse` thêm `created_at`
+- [x] FE: tab Cài đặt → Tài khoản (`components/settings/AccountSettings.tsx`): info + đổi tên + đổi mật khẩu + đăng xuất
+- [x] Store thêm `setUser`; hooks `useUpdateProfile`, `useChangePassword`
+
+## Chưa làm / Backlog
+- [ ] Xoá tài khoản (cần cascade delete dữ liệu liên quan — destructive, chưa làm)
+- [ ] Cron/worker nền trên Render (Celery beat) cho nhắc qua email/push (hiện chỉ pull in-app)
+- [ ] Responsive/UX polish sâu hơn cho toàn bộ trang

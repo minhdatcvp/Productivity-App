@@ -27,6 +27,11 @@ class QuizStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
 
 
+class FlashCardCategory(str, enum.Enum):
+    REVIEW = "REVIEW"        # "Cần học thêm" — included in SRS review
+    MEMORIZED = "MEMORIZED"  # "Đã nhớ" — not reviewed
+
+
 class CatalogBlock(Base):
     __tablename__ = "catalog_blocks"
 
@@ -120,6 +125,9 @@ class FlashCard(Base):
     subject_mod_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("subject_modules.id", ondelete="CASCADE"), nullable=False, index=True)
     front: Mapped[str] = mapped_column(Text, nullable=False)
     back: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[FlashCardCategory] = mapped_column(
+        Enum(FlashCardCategory), nullable=False, default=FlashCardCategory.REVIEW, server_default="REVIEW"
+    )
     ease_factor: Mapped[float] = mapped_column(Float, default=2.5)
     interval: Mapped[int] = mapped_column(Integer, default=1)
     repetitions: Mapped[int] = mapped_column(Integer, default=0)
